@@ -64,7 +64,8 @@ def get_parser():
                         help="Use sinusoidal embeddings")
     parser.add_argument("--use_lang_emb", type=bool_flag, default=True,
                         help="Use language embedding")
-
+    parser.add_argument("--label_sm", type=float, default=-1,
+                        help="Use label smoothing for paralled data MT task")
     # memory parameters
     parser.add_argument("--use_memory", type=bool_flag, default=False,
                         help="Use an external memory")
