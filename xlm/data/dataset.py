@@ -189,6 +189,7 @@ class Dataset(object):
                 sentence_ids = sentence_ids[:self.max_batch_size]
             pos = self.pos[sentence_ids]
             sent = [self.sent[a:b] for a, b in pos]
+            exit()
             sent = self.batch_sentences(sent)
             yield (sent, sentence_ids) if return_indices else sent
 

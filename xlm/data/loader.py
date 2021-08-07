@@ -158,8 +158,23 @@ def load_mono_data(params, data):
                 data['mono'][lang][splt] = dataset
 
             logger.info("")
-
+    
     logger.info("")
+
+
+    for src,tgt in set(params.w2s_steps):
+        with open(params.w2s_dict + src + "2" + tgt + ".dict",encoding='utf-8', errors='surrogateescape') as w2w: # Used from https://github.com/mttravel/Dictionary-based-MT/
+            w2w_dict = {}
+            for line in w2w:
+                line = line.strip()
+                idx = line.find(' ')
+                word_src = line[:idx]
+                word_tgt = line[idx + 1:]
+                if word_src not in w2w_dict.keys():
+                    w2w_dict[(src,data['dico'].index(word_src))] = data['dico'].index(word_tgt)
+    
+    data['w2w_dict'] = w2w_dict
+    logger.info('============= Loaded Word to Word Dictionary ===========')
 
 
 def load_para_data(params, data):
@@ -272,7 +287,15 @@ def check_data_params(params):
     assert all([lang in params.langs for lang in params.ae_steps])
     assert len(params.ae_steps) == len(set(params.ae_steps))
     assert len(params.ae_steps) == 0 or not params.encoder_only
-
+    
+    #Word to sentence pairs steps #TODO load mono data if w2s_steps/currently using from autoencoding
+    params.w2s_steps = [tuple(s.split('-')) for s in params.w2s_steps.split(',') if len(s) > 0]
+    assert all([len(x) == 2 for x in params.w2s_steps])
+    assert all([l1 in params.langs and l2 in params.langs for l1, l2 in params.w2s_steps])
+    assert all([l1 != l2 for l1, l2 in params.w2s_steps])
+    assert len(params.w2s_steps) == len(set(params.w2s_steps))
+    assert len(params.w2s_steps) == 0 or not params.encoder_only
+    
     # back-translation steps
     params.bt_steps = [tuple(s.split('-')) for s in params.bt_steps.split(',') if len(s) > 0]
     assert all([len(x) == 3 for x in params.bt_steps])

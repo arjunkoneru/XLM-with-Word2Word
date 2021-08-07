@@ -176,7 +176,13 @@ def get_parser():
                         help="Back-translation steps")
     parser.add_argument("--pc_steps", type=str, default="",
                         help="Parallel classification steps")
+    parser.add_argument("--w2s_steps", type=str, default="",
+                        help="Synthetic pair with word translation steps")
 
+    # synthetic word translation dicionary
+
+    parser.add_argument("--w2s_dict", type=str, default="",
+                        help="Folder for word to word dictionaries, filepath $w2s_dict/$src2$tgt.dict")
 
     # reload pretrained embeddings / pretrained model / checkpoint
     parser.add_argument("--reload_emb", type=str, default="",
