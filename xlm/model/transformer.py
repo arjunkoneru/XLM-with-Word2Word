@@ -111,6 +111,7 @@ class PredLayer(nn.Module):
         self.n_words = params.n_words
         self.pad_index = params.pad_index
         dim = params.emb_dim
+        self.label_sm = params.label_sm
 
         if params.asm is False:
             self.proj = Linear(dim, params.n_words, bias=True)
@@ -130,8 +131,17 @@ class PredLayer(nn.Module):
         assert (y == self.pad_index).sum().item() == 0
 
         if self.asm is False:
-            scores = self.proj(x).view(-1, self.n_words)
-            loss = F.cross_entropy(scores, y, reduction='mean')
+            if (self.label_sm < 0):
+                scores = self.proj(x).view(-1, self.n_words)
+                loss = F.cross_entropy(scores, y, reduction='mean')
+            else:
+                scores = self.proj(x).view(-1, self.n_words)
+                n = scores.size()[-1]
+                log_preds = F.log_softmax(scores, dim=-1)
+                red_loss = self.reduce_loss(-log_preds.sum(dim=-1),'mean')
+                nll = F.cross_entropy(log_preds, y, reduction='mean')
+                loss = self.linear_combination(red_loss/n, nll, self.label_sm)
+               
         else:
             _, loss = self.proj(x, y)
             scores = self.proj.log_prob(x) if get_scores else None
@@ -144,6 +154,12 @@ class PredLayer(nn.Module):
         """
         assert x.dim() == 2
         return self.proj.log_prob(x) if self.asm else self.proj(x)
+
+    def linear_combination(self, x, y, epsilon):
+    	return epsilon*x + (1-epsilon)*y
+
+    def reduce_loss(self, loss, reduction='mean'):
+    	return loss.mean() if reduction=='mean' else loss.sum() if reduction=='sum' else loss
 
 
 class MultiHeadAttention(nn.Module):
@@ -279,6 +295,8 @@ class TransformerModel(nn.Module):
         if params.n_langs > 1 and self.use_lang_emb:
             self.lang_embeddings = Embedding(self.n_langs, self.dim)
         self.embeddings = Embedding(self.n_words, self.dim, padding_idx=self.pad_index)
+        if (params.freeze_emb):
+            self.embeddings.require_grad = False
         self.layer_norm_emb = nn.LayerNorm(self.dim, eps=1e-12)
 
         # transformer layers

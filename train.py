@@ -177,6 +177,7 @@ def get_parser():
     parser.add_argument("--pc_steps", type=str, default="",
                         help="Parallel classification steps")
 
+
     # reload pretrained embeddings / pretrained model / checkpoint
     parser.add_argument("--reload_emb", type=str, default="",
                         help="Reload pretrained word embeddings")
@@ -185,6 +186,8 @@ def get_parser():
     parser.add_argument("--reload_checkpoint", type=str, default="",
                         help="Reload a checkpoint")
 
+    parser.add_argument("--freeze_emb", type=bool_flag, default=False,
+                        help="Freeze embedding layer")
     # beam search (for MT only)
     parser.add_argument("--beam_size", type=int, default=1,
                         help="Beam size, default = 1 (greedy decoding)")
