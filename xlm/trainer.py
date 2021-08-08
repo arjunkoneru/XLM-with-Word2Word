@@ -121,6 +121,7 @@ class Trainer(object):
             [('PC-%s-%s' % (l1, l2), []) for l1, l2 in params.pc_steps] +
             [('AE-%s' % lang, []) for lang in params.ae_steps] +
             [('MT-%s-%s' % (l1, l2), []) for l1, l2 in params.mt_steps] +
+            [('W2S-%s-%s' % (l1, l2), []) for l1, l2 in params.w2s_steps] +
             [('BT-%s-%s-%s' % (l1, l2, l3), []) for l1, l2, l3 in params.bt_steps]
         )
         self.last_time = time.time()
@@ -292,11 +293,20 @@ class Trainer(object):
             if stream:
                 iterator = self.data['mono_stream'][lang1]['train'].get_iterator(shuffle=True)
             else:
-                iterator = self.data['mono'][lang1]['train'].get_iterator(
-                    shuffle=True,
-                    group_by_size=self.params.group_by_size,
-                    n_sentences=-1,
-                )
+                if(iter_name != 'w2s'):
+                    iterator = self.data['mono'][lang1]['train'].get_iterator(
+                        shuffle=True,
+                        group_by_size=self.params.group_by_size,
+                        n_sentences=-1,
+                   ) 
+                else:
+                    iterator = self.data['mono'][lang1]['train'].get_iterator(
+                        shuffle=True,
+                        group_by_size=self.params.group_by_size,
+                        n_sentences=-1,
+                        w2w_dict=self.data['w2w_dict'],
+                        lang = lang1
+                   ) 
         else:
             assert stream is False
             _lang1, _lang2 = (lang1, lang2) if lang1 < lang2 else (lang2, lang1)
@@ -810,7 +820,6 @@ class EncDecTrainer(Trainer):
         self.decoder = decoder
         self.data = data
         self.params = params
-
         super().__init__(data, params)
 
     def mt_step(self, lang1, lang2, lambda_coeff):
@@ -857,6 +866,56 @@ class EncDecTrainer(Trainer):
         # loss
         _, loss = self.decoder('predict', tensor=dec2, pred_mask=pred_mask, y=y, get_scores=False)
         self.stats[('AE-%s' % lang1) if lang1 == lang2 else ('MT-%s-%s' % (lang1, lang2))].append(loss.item())
+        loss = lambda_coeff * loss
+
+        # optimize
+        self.optimize(loss)
+
+        # number of processed sentences / words
+        self.n_sentences += params.batch_size
+        self.stats['processed_s'] += len2.size(0)
+        self.stats['processed_w'] += (len2 - 1).sum().item()
+
+    def w2s_step(self, lang1, lang2, lambda_coeff):
+        """
+        Word translation to sentence step..
+        """
+        assert lambda_coeff >= 0
+        if lambda_coeff == 0:
+            return
+        params = self.params
+        self.encoder.train()
+        self.decoder.train()
+
+        lang1_id = params.lang2id[lang1]
+        lang2_id = params.lang2id[lang2]
+
+        # generate batch
+        (x2, len2), (x1, len1) = self.get_batch('w2s', lang1, None)
+        #(x1, len1) = self.add_noise(x1, len1)
+
+        langs1 = x1.clone().fill_(lang2_id)
+        langs2 = x2.clone().fill_(lang1_id)
+        
+        # target words to predict
+        alen = torch.arange(len2.max(), dtype=torch.long, device=len1.device)
+        pred_mask = alen[:, None] < len2[None] - 1  # do not predict anything given the last target word
+        y = x2[1:].masked_select(pred_mask[:-1])
+        assert len(y) == (len2 - 1).sum().item()
+
+        # cuda
+        x1, len1, langs1, x2, len2, langs2, y = to_cuda(x1, len1, langs1, x2, len2, langs2, y)
+
+        # encode source sentence
+        enc1 = self.encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False)
+        enc1 = enc1.transpose(0, 1)
+
+        # decode target sentence
+        dec2 = self.decoder('fwd', x=x2, lengths=len2, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
+
+        # loss
+        _, loss = self.decoder('predict', tensor=dec2, pred_mask=pred_mask, y=y, get_scores=False)
+        self.stats[ ('W2S-%s-%s' % (lang1, lang2))].append(loss.item())
         loss = lambda_coeff * loss
 
         # optimize

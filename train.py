@@ -162,7 +162,8 @@ def get_parser():
                         help="MT coefficient")
     parser.add_argument("--lambda_bt", type=str, default="1",
                         help="BT coefficient")
-
+    parser.add_argument("--lambda_w2s", type=str, default="1",
+                        help="W2S coefficient")
     # training steps
     parser.add_argument("--clm_steps", type=str, default="",
                         help="Causal prediction steps (CLM)")
@@ -183,7 +184,7 @@ def get_parser():
 
     parser.add_argument("--w2s_dict", type=str, default="",
                         help="Folder for word to word dictionaries, filepath $w2s_dict/$src2$tgt.dict")
-
+    
     # reload pretrained embeddings / pretrained model / checkpoint
     parser.add_argument("--reload_emb", type=str, default="",
                         help="Reload pretrained word embeddings")
@@ -292,6 +293,9 @@ def main(params):
             # machine translation steps
             for lang1, lang2 in shuf_order(params.mt_steps, params):
                 trainer.mt_step(lang1, lang2, params.lambda_mt)
+
+            for lang1, lang2 in shuf_order(params.w2s_steps, params):
+                trainer.w2s_step(lang1, lang2, params.lambda_w2s)
 
             # back-translation steps
             for lang1, lang2, lang3 in shuf_order(params.bt_steps):

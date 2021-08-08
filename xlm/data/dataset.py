@@ -182,18 +182,45 @@ class Dataset(object):
         Return a sentences iterator, given the associated sentence batches.
         """
         assert type(return_indices) is bool
-
         for sentence_ids in batches:
             if 0 < self.max_batch_size < len(sentence_ids):
                 np.random.shuffle(sentence_ids)
                 sentence_ids = sentence_ids[:self.max_batch_size]
             pos = self.pos[sentence_ids]
             sent = [self.sent[a:b] for a, b in pos]
-            exit()
             sent = self.batch_sentences(sent)
             yield (sent, sentence_ids) if return_indices else sent
 
-    def get_iterator(self, shuffle, group_by_size=False, n_sentences=-1, seed=None, return_indices=False):
+    def get_batches_iterator_w2w(self, batches, return_indices,w2w_dict=None,lang=None):
+        """
+        Return a sentences iterator, given the associated sentence batches.
+        """
+        assert type(return_indices) is bool
+        for sentence_ids in batches:
+            if 0 < self.max_batch_size < len(sentence_ids):
+                np.random.shuffle(sentence_ids)
+                sentence_ids = sentence_ids[:self.max_batch_size]
+            pos = self.pos[sentence_ids]
+            sent = [self.sent[a:b] for a, b in pos]
+            sent2 = []
+            for sent_id in sent:
+                sent2.append(self.map_words(sent_id,w2w_dict,lang))
+            sent1 = self.batch_sentences(sent)
+            sent2 = self.batch_sentences(sent2)
+            yield (sent1, sent2, sentence_ids) if return_indices else (sent1, sent2)
+ 
+    def map_words(self,sent,w2w_dict,lang):
+        tgt_sent = []
+        for word in sent:
+            try:
+                tgt_word = w2w_dict[(lang,word)]
+                #tgt_word = w2w_dict[word]
+            except:
+                tgt_word = word
+            tgt_sent.append(tgt_word)
+        return np.asarray(tgt_sent)
+
+    def get_iterator(self, shuffle, group_by_size=False, n_sentences=-1, seed=None, return_indices=False,w2w_dict=None,lang=None):
         """
         Return a sentences iterator.
         """
@@ -237,7 +264,10 @@ class Dataset(object):
         # assert set.union(*[set(x.tolist()) for x in batches]) == set(range(n_sentences))  # slow
 
         # return the iterator
-        return self.get_batches_iterator(batches, return_indices)
+        if(lang == None):
+            return self.get_batches_iterator(batches, return_indices)
+        else:
+            return self.get_batches_iterator_w2w(batches, return_indices,w2w_dict,lang)
 
 
 class ParallelDataset(Dataset):
