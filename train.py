@@ -164,6 +164,8 @@ def get_parser():
                         help="BT coefficient")
     parser.add_argument("--lambda_w2s", type=str, default="1",
                         help="W2S coefficient")
+    parser.add_argument("--lambda_colt", type=str, default="1",
+                        help="COLT coefficient")
     # training steps
     parser.add_argument("--clm_steps", type=str, default="",
                         help="Causal prediction steps (CLM)")
@@ -179,7 +181,8 @@ def get_parser():
                         help="Parallel classification steps")
     parser.add_argument("--w2s_steps", type=str, default="",
                         help="Synthetic pair with word translation steps")
-
+    parser.add_argument("--colt_steps", type=str, default="",
+                        help="Synthetic pair with word translation steps")
     # synthetic word translation dicionary
 
     parser.add_argument("--w2s_dict", type=str, default="",

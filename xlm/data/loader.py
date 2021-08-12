@@ -296,6 +296,13 @@ def check_data_params(params):
     assert len(params.w2s_steps) == len(set(params.w2s_steps))
     assert len(params.w2s_steps) == 0 or not params.encoder_only
     
+    #Contrastive learning on parallel data
+    params.colt_steps = [tuple(s.split('-')) for s in params.colt_steps.split(',') if len(s) > 0]
+    assert all([len(x) == 2 for x in params.colt_steps])
+    assert all([l1 in params.langs and l2 in params.langs for l1, l2 in params.colt_steps])
+    assert all([l1 != l2 for l1, l2 in params.colt_steps])
+    assert len(params.colt_steps) == len(set(params.colt_steps))
+    
     # back-translation steps
     params.bt_steps = [tuple(s.split('-')) for s in params.bt_steps.split(',') if len(s) > 0]
     assert all([len(x) == 3 for x in params.bt_steps])
