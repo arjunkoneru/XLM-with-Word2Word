@@ -122,7 +122,8 @@ class Trainer(object):
             [('AE-%s' % lang, []) for lang in params.ae_steps] +
             [('MT-%s-%s' % (l1, l2), []) for l1, l2 in params.mt_steps] +
             [('W2S-%s-%s' % (l1, l2), []) for l1, l2 in params.w2s_steps] +
-            [('BT-%s-%s-%s' % (l1, l2, l3), []) for l1, l2, l3 in params.bt_steps]
+            [('BT-%s-%s-%s' % (l1, l2, l3), []) for l1, l2, l3 in params.bt_steps] +
+            [('CT-%s-%s-%s' % (l1, l2, l3), []) for l1, l2, l3 in params.ct_steps]
         )
         self.last_time = time.time()
 
@@ -992,3 +993,70 @@ class EncDecTrainer(Trainer):
         self.n_sentences += params.batch_size
         self.stats['processed_s'] += len1.size(0)
         self.stats['processed_w'] += (len1 - 1).sum().item()
+
+    def ct_step(self, lang1, lang2, lang3, lambda_coeff):
+        """
+        Pivot-Translation step for machine translation
+        """
+        assert lambda_coeff >=0
+        if lambda_coeff ==0:
+            return
+        assert lang1!=lang2 and lang2!=lang3 and lang3!=lang1
+        params = self.params
+        _encoder = self.encoder.module if params.multi_gpu else self.encoder
+        _decoder = self.decoder.module if params.multi_gpu else self.decoder
+
+        lang1_id = params.lang2id[lang1]
+        lang2_id = params.lang2id[lang2]
+        lang3_id = params.lang2id[lang3]
+
+        (x1, len1), (x3, len3) = self.get_batch('ct', lang1, lang3)
+        langs1 = x1.clone().fill_(lang1_id)
+        langs3 = x3.clone().fill_(lang3_id)
+        x1, len1, langs1 = to_cuda(x1, len1, langs1)
+
+        with torch.no_grad():
+            # evaluation mode
+            self.encoder.eval()
+            self.decoder.eval()
+
+            # encode source sentence and translate it
+            enc1 = _encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False)
+            enc1 = enc1.transpose(0, 1)
+            x2, len2 = _decoder.generate(enc1, len1, lang2_id, max_len=int(1.3 * len1.max().item() + 5))
+            langs2 = x2.clone().fill_(lang2_id)
+
+            # free CUDA memory
+            del enc1
+
+            # training mode
+            self.encoder.train()
+            self.decoder.train()
+
+        # encode generate sentence
+        enc2 = self.encoder('fwd', x=x2, lengths=len2, langs=langs2, causal=False)
+        enc2 = enc2.transpose(0, 1)
+
+        x3, len3, langs3 = to_cuda(x3, len3, langs3)
+
+        # words to predict
+        alen = torch.arange(len3.max(), dtype=torch.long, device=len3.device)
+        pred_mask = alen[:, None] < len3[None] - 1  # do not predict anything given the last target word
+        y3 = x3[1:].masked_select(pred_mask[:-1])
+        
+        # decode parallel sentence in the target language
+        dec3 = self.decoder('fwd', x=x3, lengths=len3, langs=langs3, causal=True, src_enc=enc2, src_len=len2)
+
+        # loss
+        _, loss = self.decoder('predict', tensor=dec3, pred_mask=pred_mask, y=y3, get_scores=False)
+        self.stats[('CT-%s-%s-%s' % (lang1, lang2, lang3))].append(loss.item())
+        loss = lambda_coeff * loss
+
+        # optimize
+        self.optimize(loss)
+
+        # number of processed sentences / words
+        self.n_sentences += params.batch_size
+        self.stats['processed_s'] += len1.size(0)
+        self.stats['processed_w'] += (len1 - 1).sum().item()
+

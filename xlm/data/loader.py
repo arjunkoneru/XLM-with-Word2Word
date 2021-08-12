@@ -138,7 +138,7 @@ def load_mono_data(params, data):
                 data['mono_stream'][lang][splt].select_data(a, b)
 
             # for denoising auto-encoding and online back-translation, we need a non-stream (batched) dataset
-            if lang in params.ae_steps or lang in params.bt_src_langs:
+            if lang in params.ae_steps or lang in params.bt_src_langs or lang in params.w2s_src_langs:
 
                 # create batched dataset
                 dataset = Dataset(mono_data['sentences'], mono_data['positions'], params)
@@ -183,7 +183,7 @@ def load_para_data(params, data):
     """
     data['para'] = {}
 
-    required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
+    required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps) | set([(l1, l3) for l1,_,l3 in params.ct_steps])
 
     for src, tgt in params.para_dataset.keys():
 
@@ -295,7 +295,9 @@ def check_data_params(params):
     assert all([l1 != l2 for l1, l2 in params.w2s_steps])
     assert len(params.w2s_steps) == len(set(params.w2s_steps))
     assert len(params.w2s_steps) == 0 or not params.encoder_only
-    
+    params.w2s_src_langs = [l1 for l1,_ in params.w2s_steps]
+
+
     # back-translation steps
     params.bt_steps = [tuple(s.split('-')) for s in params.bt_steps.split(',') if len(s) > 0]
     assert all([len(x) == 3 for x in params.bt_steps])
@@ -305,8 +307,15 @@ def check_data_params(params):
     assert len(params.bt_steps) == 0 or not params.encoder_only
     params.bt_src_langs = [l1 for l1, _, _ in params.bt_steps]
 
+    # cross-Translation steps
+    params.ct_steps = [tuple(s.split('-')) for s in params.ct_steps.split(',') if len(s) > 0]
+    assert all([len(x) == 3 for x in params.ct_steps])
+    assert all([l1 in params.langs and l2 in params.langs and l3 in params.langs for l1, l2, l3 in params.ct_steps])
+    assert all([l1 != l3 and l1 != l2 and l2!=l3 for l1, l2, l3 in params.ct_steps])
+    assert len(params.ct_steps) == len(set(params.ct_steps))
+    assert len(params.ct_steps) == 0 or not params.encoder_only
     # check monolingual datasets
-    required_mono = set([l1 for l1, l2 in (params.mlm_steps + params.clm_steps) if l2 is None] + params.ae_steps + params.bt_src_langs)
+    required_mono = set([l1 for l1, l2 in (params.mlm_steps + params.clm_steps) if l2 is None] + params.ae_steps + params.bt_src_langs + params.w2s_src_langs)
     params.mono_dataset = {
         lang: {
             splt: os.path.join(params.data_path, '%s.%s.pth' % (splt, lang))
@@ -320,8 +329,8 @@ def check_data_params(params):
     assert all([all([os.path.isfile(p) for p in paths.values()]) for paths in params.mono_dataset.values()])
 
     # check parallel datasets
-    required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
-    required_para = required_para_train | set([(l2, l3) for _, l2, l3 in params.bt_steps])
+    required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps) | set([(l1, l3) for l1,_,l3 in params.ct_steps])
+    required_para = required_para_train | set([(l2, l3) for _, l2, l3 in params.bt_steps]) | set([(l2, l3) for _, l2, l3 in params.ct_steps]) | set([(l1, l2) for l1, l2 in params.w2s_steps])
     params.para_dataset = {
         (src, tgt): {
             splt: (os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, src)),
@@ -340,7 +349,7 @@ def check_data_params(params):
     assert all([all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in params.para_dataset.values()])
 
     # check that we can evaluate on BLEU
-    assert params.eval_bleu is False or len(params.mt_steps + params.bt_steps) > 0
+    assert params.eval_bleu is False or len(params.mt_steps + params.bt_steps + params.ct_steps + params.w2s_steps) > 0
 
 
 def load_data(params):

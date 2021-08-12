@@ -34,7 +34,7 @@ def check_model_params(params):
     params.word_rand = s[2]
 
     # input sentence noise for DAE
-    if len(params.ae_steps) == 0:
+    if len(params.ae_steps) == 0 and len(params.w2s_steps) == 0:
         assert params.word_shuffle == 0
         assert params.word_dropout == 0
         assert params.word_blank == 0
