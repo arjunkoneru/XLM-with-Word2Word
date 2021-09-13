@@ -172,9 +172,9 @@ def load_mono_data(params, data):
                 word_tgt = line[idx + 1:]
                 if word_src not in w2w_dict.keys():
                     w2w_dict[(src,data['dico'].index(word_src))] = data['dico'].index(word_tgt)
-    
-    data['w2w_dict'] = w2w_dict
-    logger.info('============= Loaded Word to Word Dictionary ===========')
+    if (params.w2s_steps != []):    
+        data['w2w_dict'] = w2w_dict
+        logger.info('============= Loaded Word to Word Dictionary ===========')
 
 
 def load_para_data(params, data):
