@@ -5,6 +5,7 @@
 1. Label smoothing loss (--label_sm)
 2. Freezing embedding layer (--freeze_emb)
 3. Online training with word to word translation as source sentence and original as target sentence
+4. Script for RTTL
 
 ## TODO
 
