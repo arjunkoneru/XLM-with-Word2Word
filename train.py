@@ -226,7 +226,6 @@ def get_parser():
                         help="Multi-GPU - Local rank")
     parser.add_argument("--master_port", type=int, default=-1,
                         help="Master port (for multi-node SLURM jobs)")
-
     return parser
 
 
@@ -240,7 +239,7 @@ def main(params):
 
     # initialize SLURM signal handler for time limit / pre-emption
     init_signal_handler()
-
+ 
     # load data
     data = load_data(params)
 
@@ -257,7 +256,8 @@ def main(params):
     else:
         trainer = EncDecTrainer(encoder, decoder, data, params)
         evaluator = EncDecEvaluator(trainer, data, params)
-
+    
+    # If RTTL, evaluate scores and exit
     # evaluation
     if params.eval_only:
         scores = evaluator.run_all_evals(trainer)
