@@ -125,10 +125,11 @@ def main(params):
         for sent in lengths:
             idx = sent.item()
             sent_logprob = torch.div(torch.sum(logprobs[j:j+idx-1]),idx-1)
-            sent_logprobs.append(sent_logprob)
+            sent_logprobs.append(str(sent_logprob.item()))
             j+= idx
             lens.append(idx - 1)
-    f.writelines(sent_logprobs)
+    for score in sent_logprobs:
+        f.write(score + "\n")
     f.close()
 
 

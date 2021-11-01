@@ -334,6 +334,8 @@ class TransformerModel(nn.Module):
             self.pred_layer = PredLayer(params)
             if params.share_inout_emb:
                 self.pred_layer.proj.weight = self.embeddings.weight
+                if params.freeze_emb:
+                    self.pred_layer.proj.requires_grad = False
 
     def forward(self, mode, **kwargs):
         """
